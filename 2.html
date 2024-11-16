@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Storage Optimization Simulator</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 50px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+
+        .disk-section, .controls-section {
+            width: 48%;
+            padding: 10px;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #444;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #6e8efb;
+            box-shadow: 0 0 5px rgba(110, 142, 251, 0.5);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 16px;
+            background: #6e8efb;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5a75db;
+        }
+
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #333;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .disk {
+            display: flex;
+            flex-wrap: wrap;
+            width: 320px; /* 8 blocks per row */
+            margin-bottom: 20px;
+        }
+
+        .block {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 2px;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background 0.3s, transform 0.3s;
+        }
+
+        .block.occupied {
+            background-color: #ff4757;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .block.free {
+            background-color: #a5b2b7;
+            color: white;
+            transform: scale(1);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+    <script>
+        // C-SCAN Simulation
+        function simulateCScan() {
+            const requests = document.getElementById('requests').value.split(',').map(Number);
+            const head = parseInt(document.getElementById('head').value);
+            const maxTrack = parseInt(document.getElementById('maxTrack').value);
+            
+            const sortedRequests = requests.sort((a, b) => a - b);
+            const serviced = [];
+            let currentPosition = head;
+
+            for (let i = 0; i < sortedRequests.length; i++) {
+                if (sortedRequests[i] >= currentPosition) {
+                    serviced.push(sortedRequests[i]);
+                    currentPosition = sortedRequests[i];
+                }
+            }
+
+            currentPosition = 0;
+            serviced.push(maxTrack);
+
+            for (let i = 0; i < sortedRequests.length; i++) {
+                if (sortedRequests[i] < head) {
+                    serviced.push(sortedRequests[i]);
+                }
+            }
+
+            document.getElementById('output').innerText = 'Serviced Order: ' + serviced.join(' -> ');
+        }
+
+        // Disk setup
+        const TOTAL_BLOCKS = 24;
+        let disk = Array(TOTAL_BLOCKS).fill(null);
+        let fileMap = {};
+
+        function updateDisk() {
+            const diskContainer = document.getElementById("disk");
+            diskContainer.innerHTML = '';
+            for (let i = 0; i < TOTAL_BLOCKS; i++) {
+                const blockDiv = document.createElement("div");
+                blockDiv.classList.add("block");
+
+                if (disk[i] === null) {
+                    blockDiv.classList.add("free");
+                    blockDiv.innerText = "F";
+                } else {
+                    blockDiv.classList.add("occupied");
+                    blockDiv.innerText = disk[i];
+                }
+
+                diskContainer.appendChild(blockDiv);
+            }
+        }
+
+        function createFile() {
+            const fileName = document.getElementById("fileName").value;
+            const fileSize = parseInt(document.getElementById("fileSize").value);
+
+            if (!fileName || fileSize <= 0) {
+                alert("Please enter a valid file name and size.");
+                return;
+            }
+
+            let freeStart = -1;
+            let freeCount = 0;
+            for (let i = 0; i < TOTAL_BLOCKS; i++) {
+                if (disk[i] === null) {
+                    freeCount++;
+                    if (freeCount === fileSize) {
+                        freeStart = i - fileSize + 1;
+                        break;
+                    }
+                } else {
+                    freeCount = 0;
+                }
+            }
+
+            if (freeStart === -1) {
+                alert("Not enough space for the file.");
+                return;
+            }
+
+            for (let i = freeStart; i < freeStart + fileSize; i++) {
+                disk[i] = fileName;
+            }
+
+            fileMap[fileName] = { size: fileSize, start: freeStart };
+            updateDisk();
+        }
+
+        function deleteFile() {
+            const fileName = document.getElementById("deleteFileName").value;
+
+            if (!fileMap[fileName]) {
+                alert("File not found.");
+                return;
+            }
+
+            for (let i = 0; i < TOTAL_BLOCKS; i++) {
+                if (disk[i] === fileName) {
+                    disk[i] = null;
+                }
+            }
+
+            delete fileMap[fileName];
+            updateDisk();
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="disk-section">
+            <h1>Cloud Storage Optimization Simulator</h1>
+            <p>Enter disk requests and head position to simulate Circular SCAN (C-SCAN) disk scheduling.</p>
+          <div class="disk" id="disk"></div>
+
+            <h2>Create File</h2>
+            <label>File Name: <input type="text" id="fileName"></label><br>
+            <label>File Size (in blocks): <input type="number" id="fileSize"></label><br>
+            <button onclick="createFile()">Create File</button>
+
+            <label for="requests">Disk Size:</label>
+            <input type="text" id="requests" placeholder="0">
+
+            <label for="head">Initial Head Position:</label>
+            <input type="number" id="head" value="0">
+
+            <label for="maxTrack">Max Track Number:</label>
+            <input type="number" id="maxTrack" value="40">
+
+            <button onclick="simulateCScan()">Simulate C-SCAN</button>
+ <div id="output"></div>
+
+<h2>Delete File</h2>
+            <label>File Name: <input type="text" id="deleteFileName"></label><br>
+            <button onclick="deleteFile()">Delete File</button>
+
+
+           
+
+          </div>
+</body>
+</html>
